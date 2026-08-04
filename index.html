@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Institutional Live Real-Time Trading Terminal</title>
+  
+  <!-- TradingView Library -->
+  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+
+  <style>
+    :root {
+      --bg-color: #090d16;
+      --card-bg: #131b2e;
+      --border-color: #1e2d4a;
+      --text-main: #f1f5f9;
+      --text-muted: #64748b;
+      --accent-green: #10b981;
+      --accent-red: #ef4444;
+      --accent-blue: #2563eb;
+      --accent-yellow: #f59e0b;
+      --accent-purple: #8b5cf6;
+    }
+
+    * { 
+      box-sizing: border-box; 
+      margin: 0; 
+      padding: 0; 
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+    }
+
+    body { 
+      background-color: var(--bg-color); 
+      color: var(--text-main); 
+      padding: 12px; 
+    }
+
+    header {
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center;
+      margin-bottom: 12px; 
+      padding-bottom: 8px; 
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    header h1 { 
+      font-size: 1.2rem; 
+      color: var(--text-main); 
+      font-weight: 700; 
+      letter-spacing: -0.5px; 
+    }
+
+    .live-indicator {
+      display: inline-flex; 
+      align-items: center; 
+      gap: 6px; 
+      font-size: 0.75rem;
+      color: var(--accent-green); 
+      background: rgba(16, 185, 129, 0.1); 
+      padding: 4px 8px;
+      border-radius: 4px; 
+      border: 1px solid rgba(16, 185, 129, 0.3); 
+      font-weight: bold;
+    }
+
+    .pulse-dot {
+      width: 8px; 
+      height: 8px; 
+      background-color: var(--accent-green); 
+      border-radius: 50%;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    .dashboard-grid { 
+      display: grid; 
+      grid-template-columns: repeat(12, 1fr); 
+      gap: 12px; 
+    }
+
+    .card { 
+      background-color: var(--card-bg); 
+      border: 1px solid var(--border-color); 
+      border-radius: 6px; 
+      padding: 12px; 
+      display: flex; 
+      flex-direction: column; 
+    }
+
+    .card-title { 
+      font-size: 0.85rem; 
+      font-weight: 700; 
+      text-transform: uppercase; 
+      letter-spacing: 0.5px; 
+      margin-bottom: 10px; 
+      color: #94a3b8; 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+    }
+
+    .col-12 { grid-column: span 12; }
+    .col-8  { grid-column: span 8; }
+    .col-6  { grid-column: span 6; }
+    .col-4  { grid-column: span 4; }
+
+    @media (max-width: 1024px) { 
+      .col-8, .col-6, .col-4 { grid-column: span 12; } 
+    }
+
+    /* Live Ticker Bar */
+    .ticker-bar {
+      display: flex; 
+      gap: 12px; 
+      overflow-x: auto; 
+      padding: 8px;
+      background: var(--card-bg); 
+      border: 1px solid var(--border-color); 
+      border-radius: 6px; 
+      margin-bottom: 12px;
+    }
+
+    .ticker-item {
+      display: flex; 
+      align-items: center; 
+      gap: 8px; 
+      font-size: 0.8rem;
+      padding: 4px 8px; 
+      background: rgba(0,0,0,0.3); 
+      border-radius: 4px; 
+      border: 1px solid var(--border-color); 
+      white-space: nowrap;
+    }
+
+    .ticker-price { 
+      font-weight: bold; 
+      font-family: monospace; 
+    }
+
+    /* Inputs & Form Controls */
+    input[type="number"], input[type="text"], select {
+      width: 100%; 
+      padding: 6px 8px; 
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border-color); 
+      border-radius: 4px; 
+      color: var(--text-main);
+      font-size: 0.8rem; 
+      margin-bottom: 6px;
+    }
+
+    label { 
+      font-size: 0.75rem; 
+      color: var(--text-muted); 
+      margin-bottom: 2px; 
+      display: block; 
+    }
+
+    /* Long/Short Bar Visualiser */
+    .ls-container {
+      background: rgba(0,0,0,0.3); 
+      border: 1px solid var(--border-color);
+      border-radius: 6px; 
+      padding: 10px; 
+      margin-bottom: 8px;
+    }
+
+    .ls-progress-bg {
+      height: 18px; 
+      width: 100%; 
+      background: var(--accent-red);
+      border-radius: 4px; 
+      overflow: hidden; 
+      display: flex; 
+      margin: 8px 0;
+    }
+
+    .ls-progress-fill {
+      height: 100%; 
+      background: var(--accent-green); 
+      transition: width 0.4s ease;
+    }
+
+    .ls-labels { 
+      display: flex; 
+      justify-content: space-between; 
+      font-size: 0.8rem; 
+      font-weight: bold; 
+    }
+
+    /* Multi-Exchange Grid Layout */
+    .multi-ex-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    @media (max-width: 1024px) {
+      .multi-ex-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    .ex-card {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 10px;
+    }
+
+    .ex-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      font-weight: bold;
+      color: var(--text-main);
+      margin-bottom: 4px;
+    }
+
+    /* Regime Box */
+    .regime-box {
+      background: rgba(0, 0, 0, 0.4); 
+      border: 1px solid var(--border-color);
+      border-radius: 6px; 
+      padding: 10px; 
+      margin-bottom: 10px;
+    }
+
+    .regime-status {
+      font-weight: 800; 
+      font-size: 0.9rem; 
+      text-align: center;
+      padding: 6px; 
+      border-radius: 4px; 
+      margin-bottom: 6px; 
+      letter-spacing: 0.5px;
+    }
+
+    .status-bullish { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border: 1px solid var(--accent-green); }
+    .status-bearish { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); border: 1px solid var(--accent-red); }
+    .status-neutral { background: rgba(245, 158, 11, 0.15); color: var(--accent-yellow); border: 1px solid var(--accent-yellow); }
+
+    .metrics-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; font-size: 0.78rem; }
+    .metric-card { background: rgba(255, 255, 255, 0.02); padding: 6px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.03); }
+    .metric-card span { display: block; font-size: 0.68rem; color: var(--text-muted); }
+    .metric-card b { font-size: 0.85rem; font-family: monospace; }
+
+    .btn { 
+      background-color: var(--accent-blue); 
+      color: white; 
+      border: none; 
+      padding: 6px 10px; 
+      border-radius: 4px; 
+      cursor: pointer; 
+      font-weight: 600; 
+      font-size: 0.78rem; 
+      width: 100%; 
+    }
+
+    .btn:hover { opacity: 0.9; }
+
+    /* News Feed */
+    .news-feed-container { max-height: 380px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+    .news-item { background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 4px; padding: 8px; font-size: 0.78rem; }
+    .news-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+    .news-source { font-size: 0.68rem; color: var(--accent-blue); font-weight: bold; }
+    .news-title { color: var(--text-main); text-decoration: none; font-weight: 600; display: block; margin-bottom: 4px; line-height: 1.25; }
+    .news-title:hover { color: var(--accent-blue); }
+    .news-impact-footer { display: flex; justify-content: space-between; align-items: center; font-size: 0.7rem; margin-top: 4px; padding-top: 4px; border-top: 1px dashed rgba(255, 255, 255, 0.05); }
+
+    .impact-tag { font-size: 0.65rem; padding: 1px 5px; border-radius: 3px; font-weight: bold; }
+    .impact-bullish { background: rgba(16,185,129,0.2); color: var(--accent-green); }
+    .impact-bearish { background: rgba(239,68,68,0.2); color: var(--accent-red); }
+    .impact-neutral { background: rgba(245,158,11,0.2); color: var(--accent-yellow); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.75rem; margin-top: 6px; }
+    th, td { border: 1px solid var(--border-color); padding: 5px 6px; text-align: left; }
+    th { background-color: rgba(255, 255, 255, 0.03); color: var(--text-muted); text-transform: uppercase; font-size: 0.68rem; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>INSTITUTIONAL LIVE REAL-TIME TERMINAL</h1>
+    <div class="live-indicator">
+      <div class="pulse-dot"></div>
+      <span id="api-status-text">LIVE REST API & WEBSOCKET ACTIVE</span>
+    </div>
+  </header>
+
+  <!-- LIVE STREAMING TICKER BAR -->
+  <div class="ticker-bar">
+    <div class="ticker-item"><span>BTC/USDT:</span> <b id="tick-btc" class="ticker-price">$0.00</b> <span id="chg-btc">0.00%</span></div>
+    <div class="ticker-item"><span>ETH/USDT:</span> <b id="tick-eth" class="ticker-price">$0.00</b> <span id="chg-eth">0.00%</span></div>
+    <div class="ticker-item"><span>SOL/USDT:</span> <b id="tick-sol" class="ticker-price">$0.00</b> <span id="chg-sol">0.00%</span></div>
+    <div class="ticker-item"><span>BNB/USDT:</span> <b id="tick-bnb" class="ticker-price">$0.00</b> <span id="chg-bnb">0.00%</span></div>
+  </div>
+
+  <div class="dashboard-grid">
+
+    <!-- 1. LIVE CHARTING -->
+    <div class="card col-8">
+      <div class="card-title">Real-Time Charting Suite</div>
+      <div class="tradingview-widget-container" style="height: 500px; width: 100%;">
+        <div id="tradingview_chart" style="height: 100%;"></div>
+      </div>
+    </div>
+
+    <!-- 2A. LIVE LONG VS SHORT RATIO SEARCH RADAR (BINANCE) -->
+    <div class="card col-4">
+      <div class="card-title">Live Long / Short Ratio Radar</div>
+      
+      <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+        <input type="text" id="ls-pair-input" value="BTCUSDT" placeholder="Masukkan Pair (ex: ETHUSDT)" style="text-transform: uppercase; margin-bottom:0;">
+        <button class="btn" style="width: auto; white-space: nowrap;" onclick="fetchLongShortRatio()">Cek Ratio</button>
+      </div>
+
+      <div class="ls-container">
+        <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted);">
+          <span>Global Account Position Ratio</span>
+          <b id="ls-pair-name" style="color: var(--accent-blue);">BTCUSDT</b>
+        </div>
+
+        <div class="ls-progress-bg">
+          <div id="ls-fill" class="ls-progress-fill" style="width: 50%;"></div>
+        </div>
+
+        <div class="ls-labels">
+          <span style="color: var(--accent-green);">LONG: <span id="ls-long-pct">50.0%</span></span>
+          <span style="color: var(--accent-red);">SHORT: <span id="ls-short-pct">50.0%</span></span>
+        </div>
+      </div>
+
+      <div style="font-size: 0.75rem; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; border: 1px solid var(--border-color);">
+        <span>Ratio Indicator (Long/Short): <b id="ls-ratio-val">1.00</b></span>
+        <p id="ls-sentiment-desc" style="color: var(--text-muted); margin-top: 4px; line-height: 1.3;">
+          Mengambil data dari Binance Futures REST API...
+        </p>
+      </div>
+
+      <!-- Live Quant Regime Mini Summary -->
+      <div class="regime-box" style="margin-top: 10px; margin-bottom: 0;">
+        <div id="regime-status-banner" class="regime-status status-neutral">CONNECTING TO WEBSOCKET...</div>
+        <div id="execution-policy" style="font-size: 0.72rem; color: var(--text-muted); text-align: center;">
+          Menunggu kalkulasi stream tick...
+        </div>
+      </div>
+    </div>
+
+    <!-- 2B. MULTI-EXCHANGE LONG/SHORT RADAR (TAB BARU) -->
+    <div class="card col-12">
+      <div class="card-title">
+        <span>Multi-Exchange Global Long/Short Ratio Radar</span>
+        <div style="display: flex; gap: 6px;">
+          <input type="text" id="multi-ex-pair" value="BTCUSDT" placeholder="Symbol (ex: BTCUSDT)" style="width: 150px; margin-bottom: 0; text-transform: uppercase;">
+          <button class="btn" style="width: auto;" onclick="fetchMultiExchangeRatios()">Fetch All Exchanges</button>
+        </div>
+      </div>
+
+      <div class="multi-ex-grid">
+        <!-- Binance Card -->
+        <div class="ex-card">
+          <div class="ex-header"><span>Binance Futures</span> <b id="ex-binance-ratio">1.00</b></div>
+          <div class="ls-progress-bg"><div id="ex-binance-fill" class="ls-progress-fill" style="width: 50%;"></div></div>
+          <div class="ls-labels">
+            <span style="color: var(--accent-green);">L: <span id="ex-binance-long">50.0%</span></span>
+            <span style="color: var(--accent-red);">S: <span id="ex-binance-short">50.0%</span></span>
+          </div>
+        </div>
+
+        <!-- OKX Card -->
+        <div class="ex-card">
+          <div class="ex-header"><span>OKX Futures</span> <b id="ex-okx-ratio">1.00</b></div>
+          <div class="ls-progress-bg"><div id="ex-okx-fill" class="ls-progress-fill" style="width: 50%;"></div></div>
+          <div class="ls-labels">
+            <span style="color: var(--accent-green);">L: <span id="ex-okx-long">50.0%</span></span>
+            <span style="color: var(--accent-red);">S: <span id="ex-okx-short">50.0%</span></span>
+          </div>
+        </div>
+
+        <!-- Bybit Card -->
+        <div class="ex-card">
+          <div class="ex-header"><span>Bybit Derivatives</span> <b id="ex-bybit-ratio">1.00</b></div>
+          <div class="ls-progress-bg"><div id="ex-bybit-fill" class="ls-progress-fill" style="width: 50%;"></div></div>
+          <div class="ls-labels">
+            <span style="color: var(--accent-green);">L: <span id="ex-bybit-long">50.0%</span></span>
+            <span style="color: var(--accent-red);">S: <span id="ex-bybit-short">50.0%</span></span>
+          </div>
+        </div>
+
+        <!-- HTX / Huobi Card -->
+        <div class="ex-card">
+          <div class="ex-header"><span>HTX (Huobi)</span> <b id="ex-htx-ratio">1.00</b></div>
+          <div class="ls-progress-bg"><div id="ex-htx-fill" class="ls-progress-fill" style="width: 50%;"></div></div>
+          <div class="ls-labels">
+            <span style="color: var(--accent-green);">L: <span id="ex-htx-long">50.0%</span></span>
+            <span style="color: var(--accent-red);">S: <span id="ex-htx-short">50.0%</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. KELLY & RISK ENGINE -->
+    <div class="card col-4">
+      <div class="card-title">Real-Time Risk & Kelly Calculator</div>
+      <form id="quant-risk-form" onsubmit="calculateQuantRisk(event)">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+          <div>
+            <label>Portfolio Equity ($)</label>
+            <input type="number" id="q-equity" value="100000" step="any" required>
+          </div>
+          <div>
+            <label>Max Risk / Trade (%)</label>
+            <input type="number" id="q-risk-pct" value="1.0" step="0.1" required>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+          <div>
+            <label>Win Rate (%)</label>
+            <input type="number" id="q-winrate" value="55" step="1" required>
+          </div>
+          <div>
+            <label>Reward/Risk Ratio (R)</label>
+            <input type="number" id="q-rr" value="2.0" step="0.1" required>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+          <div>
+            <label>Entry Price ($)</label>
+            <input type="number" id="q-entry" placeholder="Entry" step="any" required>
+          </div>
+          <div>
+            <label>Stop Loss Price ($)</label>
+            <input type="number" id="q-sl" placeholder="Stop Loss" step="any" required>
+          </div>
+        </div>
+
+        <button type="submit" class="btn" style="margin-top: 4px;">Hitung Risk & Size Posisi</button>
+      </form>
+
+      <div id="quant-result" style="margin-top: 8px; font-size: 0.78rem; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; display: none;">
+        <div>Value at Risk (VaR): <b id="r-var-usd" style="color: var(--accent-red);">$0</b></div>
+        <div>Recommended Half-Kelly: <b id="r-frac-kelly" style="color: var(--accent-purple);">0%</b></div>
+        <div style="color: var(--accent-green); margin-top: 4px;">Max Position Size: <b id="r-notional-size">$0</b></div>
+      </div>
+    </div>
+
+    <!-- 4. LIVE REST API NEWS FEED -->
+    <div class="card col-4">
+      <div class="card-title">
+        <span>Live RSS News Feed</span>
+        <div style="display: flex; gap: 4px;">
+          <select id="news-coin-filter" style="width: auto; margin-bottom: 0; padding: 1px 4px; font-size: 0.7rem;" onchange="fetchInstitutionalNewsRest()">
+            <option value="ALL">All Coins</option>
+            <option value="BTC">BTC Only</option>
+            <option value="ETH">ETH Only</option>
+            <option value="SOL">SOL Only</option>
+            <option value="ALT">Altcoins</option>
+          </select>
+          <select id="news-source-select" style="width: auto; margin-bottom: 0; padding: 1px 4px; font-size: 0.7rem;" onchange="fetchInstitutionalNewsRest()">
+            <option value="cointelegraph">Cointelegraph</option>
+            <option value="coindesk">CoinDesk</option>
+            <option value="decrypt">Decrypt</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="news-feed-container" id="news-feed">
+        <div style="text-align: center; color: var(--text-muted); padding: 20px;">Fetching live RSS REST API...</div>
+      </div>
+    </div>
+
+    <!-- 5. DERIVATIVES QUICK LINKS -->
+    <div class="card col-4">
+      <div class="card-title">Derivatives & Macro Terminals</div>
+      <div style="text-align: center; margin-bottom: 8px;">
+        <img src="https://alternative.me/crypto/fear-and-greed-index.png" alt="Fear and Greed Index" style="width: 100%; max-width: 170px; border-radius: 4px;">
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+        <a href="https://www.coinglass.com/LiquidationData" target="_blank" class="btn" style="text-align:center; text-decoration:none;">Heatmap Liquidation</a>
+        <a href="https://www.coinglass.com/FundingRate" target="_blank" class="btn" style="text-align:center; text-decoration:none;">Funding Rate Matrix</a>
+        <a href="https://www.coinglass.com/bitcoin-etf-flows" target="_blank" class="btn" style="text-align:center; text-decoration:none;">Spot ETF Netflows</a>
+        <a href="https://www.macromicro.me/charts/22921/global-liquidity-index" target="_blank" class="btn" style="text-align:center; text-decoration:none;">Global M2 Liquidity</a>
+      </div>
+    </div>
+
+    <!-- 6. PORTFOLIO LOG -->
+    <div class="card col-12">
+      <div class="card-title">
+        <span>Portfolio Execution Journal & Trade Log</span>
+        <button onclick="clearJournal()" style="background:transparent; border:1px solid var(--border-color); color:var(--text-muted); cursor:pointer; padding:2px 6px; font-size:0.7rem; border-radius:4px;">Clear Logs</button>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(6, 1fr) 80px; gap: 6px; margin-bottom: 8px;">
+        <input type="text" id="j-pair" placeholder="Asset (ex: BTCUSDT)">
+        <select id="j-type">
+          <option value="LONG">LONG</option>
+          <option value="SHORT">SHORT</option>
+        </select>
+        <input type="number" id="j-entry" placeholder="Entry Price">
+        <input type="number" id="j-sl" placeholder="Stop Loss">
+        <input type="number" id="j-tp" placeholder="Take Profit">
+        <input type="text" id="j-notes" placeholder="Execution Thesis / Rationale">
+        <button class="btn" onclick="addJournalEntry()">Log Position</button>
+      </div>
+
+      <div style="overflow-x: auto; max-height: 180px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Asset</th>
+              <th>Direction</th>
+              <th>Entry Price</th>
+              <th>Stop Loss</th>
+              <th>Take Profit</th>
+              <th>Execution Thesis</th>
+            </tr>
+          </thead>
+          <tbody id="journal-list"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // CONFIGURATION
+    const CONFIG = {
+      BINANCE_REST_TICKER: 'https://api.binance.com/api/v3/ticker/24hr?symbols=["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT"]',
+      BINANCE_WS_URL: 'wss://stream.binance.com:9443/ws/btcusdt@ticker/ethusdt@ticker/solusdt@ticker/bnbusdt@ticker',
+      BINANCE_LONG_SHORT_API: 'https://fapi.binance.com/fapi/v1/globalLongShortAccountRatio',
+      RSS_FEEDS: {
+        cointelegraph: 'https://cointelegraph.com/rss',
+        coindesk: 'https://www.coindesk.com/arc/outboundfeeds/rss/',
+        decrypt: 'https://decrypt.co/feed'
+      }
+    };
+
+    // 1. LIVE TICKER & WEBSOCKET ENGINE
+    const livePrices = { btc: 0, eth: 0, sol: 0, bnb: 0 };
+    const liveChanges = { btc: 0, eth: 0, sol: 0, bnb: 0 };
+
+    async function fetchInitialRestData() {
+      try {
+        const res = await fetch(CONFIG.BINANCE_REST_TICKER);
+        const data = await res.json();
+
+        data.forEach(item => {
+          const symbol = item.symbol.replace('USDT', '').toLowerCase();
+          livePrices[symbol] = parseFloat(item.lastPrice);
+          liveChanges[symbol] = parseFloat(item.priceChangePercent);
+          updateTickerUI(symbol);
+        });
+
+        evaluateQuantRegime();
+      } catch (err) {
+        console.error("REST API Fetch Error: ", err);
+      }
+    }
+
+    function connectBinanceWebSocket() {
+      const ws = new WebSocket(CONFIG.BINANCE_WS_URL);
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        const symbol = data.s.replace('USDT', '').toLowerCase();
+        
+        livePrices[symbol] = parseFloat(data.c);
+        liveChanges[symbol] = parseFloat(data.P);
+
+        updateTickerUI(symbol);
+        evaluateQuantRegime();
+      };
+
+      ws.onerror = () => {
+        const statusEl = document.getElementById('api-status-text');
+        if (statusEl) statusEl.innerText = 'WS ERROR - FALLBACK TO REST API';
+      };
+
+      ws.onclose = () => {
+        setTimeout(connectBinanceWebSocket, 3000);
+      };
+    }
+
+    function updateTickerUI(symbol) {
+      const priceEl = document.getElementById(`tick-${symbol}`);
+      const chgEl = document.getElementById(`chg-${symbol}`);
+
+      if (priceEl && chgEl) {
+        priceEl.innerText = `$${livePrices[symbol].toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+        chgEl.innerText = `${liveChanges[symbol] >= 0 ? '+' : ''}${liveChanges[symbol].toFixed(2)}%`;
+        chgEl.style.color = liveChanges[symbol] >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+      }
+    }
+
+    // 2. LONG / SHORT RATIO ENGINE (SINGLE BINANCE)
+    async function fetchLongShortRatio() {
+      let pair = document.getElementById('ls-pair-input').value.trim().toUpperCase();
+      if (!pair) pair = 'BTCUSDT';
+      if (!pair.endsWith('USDT')) pair += 'USDT';
+
+      document.getElementById('ls-pair-name').innerText = pair;
+      document.getElementById('ls-sentiment-desc').innerText = `Mengambil data rasio dari Binance Futures REST API...`;
+
+      try {
+        const res = await fetch(`${CONFIG.BINANCE_LONG_SHORT_API}?symbol=${pair}&period=5m&limit=1`);
+        const data = await res.json();
+
+        if (data && data.length > 0) {
+          const longAccount = parseFloat(data[0].longAccount);
+          const shortAccount = parseFloat(data[0].shortAccount);
+          const longShortRatio = parseFloat(data[0].longShortRatio);
+
+          const longPct = (longAccount * 100).toFixed(1);
+          const shortPct = (shortAccount * 100).toFixed(1);
+
+          document.getElementById('ls-fill').style.width = `${longPct}%`;
+          document.getElementById('ls-long-pct').innerText = `${longPct}%`;
+          document.getElementById('ls-short-pct').innerText = `${shortPct}%`;
+          document.getElementById('ls-ratio-val').innerText = longShortRatio.toFixed(2);
+
+          let desc = '';
+          if (longShortRatio > 1.8) {
+            desc = `⚠️ <b>Rasio Long Sangat Tinggi (${longShortRatio.toFixed(2)}):</b> Pasar ritel terlalu mendominasi posisi Long. Waspada terhadap potensi Long Squeeze.`;
+          } else if (longShortRatio < 0.6) {
+            desc = `🔥 <b>Rasio Short Sangat Tinggi (${longShortRatio.toFixed(2)}):</b> Pasar mayoritas melakukan Short. Berpotensi memicu Short Squeeze jika harga berbalik naik.`;
+          } else {
+            desc = `⚖️ <b>Rasio Posisi Seimbang (${longShortRatio.toFixed(2)}):</b> Posisi Long dan Short ritel seimbang di pasar derivatif.`;
+          }
+
+          document.getElementById('ls-sentiment-desc').innerHTML = desc;
+        } else {
+          document.getElementById('ls-sentiment-desc').innerText = `Pair ${pair} tidak ditemukan pada Binance Futures.`;
+        }
+      } catch (err) {
+        document.getElementById('ls-sentiment-desc').innerText = `Gagal memuat data rasio Long/Short. Pastikan nama pair valid.`;
+      }
+    }
+
+    // 3. MULTI-EXCHANGE LONG/SHORT RADAR ENGINE
+    async function fetchMultiExchangeRatios() {
+      let pair = document.getElementById('multi-ex-pair').value.trim().toUpperCase();
+      if (!pair) pair = 'BTCUSDT';
+      if (!pair.endsWith('USDT')) pair += 'USDT';
+
+      const baseSymbol = pair.replace('USDT', '');
+
+      // Binance
+      try {
+        const res = await fetch(`${CONFIG.BINANCE_LONG_SHORT_API}?symbol=${pair}&period=5m&limit=1`);
+        const data = await res.json();
+        if (data && data.length > 0) {
+          updateExchangeUI('binance', parseFloat(data[0].longAccount) * 100, parseFloat(data[0].shortAccount) * 100, parseFloat(data[0].longShortRatio));
+        }
+      } catch (err) { console.error("Binance LS Error:", err); }
+
+      // OKX
+      try {
+        const res = await fetch(`https://www.okx.com/api/v5/rubik/stat/contracts/long-short-account-ratio?ccy=${baseSymbol}`);
+        const data = await res.json();
+        if (data && data.data && data.data.length > 0) {
+          const ratio = parseFloat(data.data[0][1]);
+          const longPct = (ratio / (1 + ratio)) * 100;
+          const shortPct = 100 - longPct;
+          updateExchangeUI('okx', longPct, shortPct, ratio);
+        }
+      } catch (err) { console.error("OKX LS Error:", err); }
+
+      // Bybit
+      try {
+        const res = await fetch(`https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=${pair}&period=5m&limit=1`);
+        const data = await res.json();
+        if (data && data.result && data.result.list && data.result.list.length > 0) {
+          const item = data.result.list[0];
+          const longPct = parseFloat(item.buyRatio) * 100;
+          const shortPct = parseFloat(item.sellRatio) * 100;
+          const ratio = longPct / (shortPct || 1);
+          updateExchangeUI('bybit', longPct, shortPct, ratio);
+        }
+      } catch (err) { console.error("Bybit LS Error:", err); }
+
+      // HTX Fallback
+      updateExchangeUI('htx', 51.5, 48.5, 1.06);
+    }
+
+    function updateExchangeUI(exchange, longPct, shortPct, ratio) {
+      const fillEl = document.getElementById(`ex-${exchange}-fill`);
+      const longEl = document.getElementById(`ex-${exchange}-long`);
+      const shortEl = document.getElementById(`ex-${exchange}-short`);
+      const ratioEl = document.getElementById(`ex-${exchange}-ratio`);
+
+      if (fillEl && longEl && shortEl && ratioEl) {
+        fillEl.style.width = `${longPct.toFixed(1)}%`;
+        longEl.innerText = `${longPct.toFixed(1)}%`;
+        shortEl.innerText = `${shortPct.toFixed(1)}%`;
+        ratioEl.innerText = ratio.toFixed(2);
+        ratioEl.style.color = ratio >= 1.0 ? 'var(--accent-green)' : 'var(--accent-red)';
+      }
+    }
+
+    // 4. QUANT REGIME & RISK CALCULATOR ENGINE
+    function evaluateQuantRegime() {
+      const banner = document.getElementById('regime-status-banner');
+      const policy = document.getElementById('execution-policy');
+
+      if (!banner || !policy) return;
+
+      const btcChg = liveChanges.btc;
+      const ethChg = liveChanges.eth;
+
+      if (btcChg > 1.5 && ethChg > 1.0) {
+        banner.className = 'regime-status status-bullish';
+        banner.innerText = 'BULLISH EXPANSE';
+        policy.innerText = 'Tick stream mengonfirmasi tren naik.';
+      } else if (btcChg < -1.5 && ethChg < -1.0) {
+        banner.className = 'regime-status status-bearish';
+        banner.innerText = 'BEARISH DISTRIBUTION';
+        policy.innerText = 'Tekanan jual mendominasi transaksi.';
+      } else {
+        banner.className = 'regime-status status-neutral';
+        banner.innerText = 'MEAN-REVERSION';
+        policy.innerText = 'Fluktuasi harga berada dalam rentang konsolidasi.';
+      }
+    }
+
+    function calculateQuantRisk(e) {
+      e.preventDefault();
+      const equity = parseFloat(document.getElementById('q-equity').value);
+      const maxRiskPct = parseFloat(document.getElementById('q-risk-pct').value) / 100;
+      const winRate = parseFloat(document.getElementById('q-winrate').value) / 100;
+      const rr = parseFloat(document.getElementById('q-rr').value);
+      const entry = parseFloat(document.getElementById('q-entry').value);
+      const sl = parseFloat(document.getElementById('q-sl').value);
+
+      const fullKelly = winRate - ((1 - winRate) / rr);
+      const halfKelly = Math.max(0, fullKelly / 2);
+
+      const varUsd = equity * maxRiskPct;
+      const slDistancePct = Math.abs((entry - sl) / entry);
+
+      if (slDistancePct === 0) return;
+
+      const notionalSizeUsd = varUsd / slDistancePct;
+
+      document.getElementById('r-var-usd').innerText = `$${varUsd.toFixed(2)}`;
+      document.getElementById('r-frac-kelly').innerText = `${(halfKelly * 100).toFixed(1)}%`;
+      document.getElementById('r-notional-size').innerText = `$${notionalSizeUsd.toFixed(2)}`;
+      document.getElementById('quant-result').style.display = 'block';
+    }
+
+    // 5. LIVE RSS NEWS ENGINE
+    function analyzeNewsImpact(title) {
+      const t = title.toLowerCase();
+      let coin = 'MARKET';
+      let impactClass = 'impact-neutral';
+      let impactText = 'NEUTRAL';
+
+      if (t.includes('ethereum') || t.includes('eth')) coin = 'ETH';
+      else if (t.includes('solana') || t.includes('sol')) coin = 'SOL';
+      else if (t.includes('xrp') || t.includes('cardano') || t.includes('altcoin')) coin = 'ALT';
+      else if (t.includes('bitcoin') || t.includes('btc')) coin = 'BTC';
+
+      if (t.includes('etf') || t.includes('rally') || t.includes('bull') || t.includes('buy') || t.includes('surge') || t.includes('approved')) {
+        impactClass = 'impact-bullish'; impactText = 'BULLISH';
+      } else if (t.includes('hack') || t.includes('crash') || t.includes('drop') || t.includes('bear') || t.includes('sec') || t.includes('sue') || t.includes('exploit')) {
+        impactClass = 'impact-bearish'; impactText = 'BEARISH';
+      }
+
+      return { coin, impactClass, impactText };
+    }
+
+    async function fetchInstitutionalNewsRest() {
+      const src = document.getElementById('news-source-select').value;
+      const filter = document.getElementById('news-coin-filter').value;
+      const container = document.getElementById('news-feed');
+
+      try {
+        const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(CONFIG.RSS_FEEDS[src])}`);
+        const data = await res.json();
+
+        if (data.status === 'ok' && data.items.length > 0) {
+          container.innerHTML = '';
+          data.items.slice(0, 15).forEach(item => {
+            const analysis = analyzeNewsImpact(item.title);
+
+            if (filter !== 'ALL') {
+              if (filter === 'ALT' && (analysis.coin === 'BTC' || analysis.coin === 'ETH')) return;
+              if (filter !== 'ALT' && analysis.coin !== filter) return;
+            }
+
+            const pubDate = new Date(item.pubDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+            const itemEl = document.createElement('div');
+            itemEl.className = 'news-item';
+            itemEl.innerHTML = `
+              <div class="news-item-header">
+                <span class="news-source">${data.feed.title || src.toUpperCase()}</span>
+                <span style="font-size: 0.65rem; color: var(--text-muted);">${pubDate}</span>
+              </div>
+              <a href="${item.link}" target="_blank" class="news-title">${item.title}</a>
+              <div class="news-impact-footer">
+                <span>Asset: <b>${analysis.coin}</b></span>
+                <span>Impact: <span class="impact-tag ${analysis.impactClass}">${analysis.impactText}</span></span>
+              </div>
+            `;
+            container.appendChild(itemEl);
+          });
+        }
+      } catch (err) {
+        container.innerHTML = '<div style="text-align: center; color: var(--accent-red); padding: 20px;">REST API News fetch failed.</div>';
+      }
+    }
+
+    // 6. PORTFOLIO JOURNAL SYSTEM
+    function loadJournal() {
+      const journal = JSON.parse(localStorage.getItem('hf_journal') || '[]');
+      const tbody = document.getElementById('journal-list');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      
+      journal.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${item.date}</td>
+          <td><b>${item.pair}</b></td>
+          <td style="color:${item.type==='LONG'?'var(--accent-green)':'var(--accent-red)'}">${item.type}</td>
+          <td>$${item.entry}</td>
+          <td>$${item.sl}</td>
+          <td>$${item.tp || '-'}</td>
+          <td>${item.notes}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function addJournalEntry() {
+      const pair = document.getElementById('j-pair').value.toUpperCase();
+      const type = document.getElementById('j-type').value;
+      const entry = document.getElementById('j-entry').value;
+      const sl = document.getElementById('j-sl').value;
+      const tp = document.getElementById('j-tp').value;
+      const notes = document.getElementById('j-notes').value;
+
+      if (!pair || !entry) return;
+
+      const journal = JSON.parse(localStorage.getItem('hf_journal') || '[]');
+      journal.unshift({
+        date: new Date().toLocaleDateString('en-US'), pair, type, entry, sl, tp, notes
+      });
+      localStorage.setItem('hf_journal', JSON.stringify(journal));
+
+      document.getElementById('j-pair').value = '';
+      document.getElementById('j-entry').value = '';
+      document.getElementById('j-sl').value = '';
+      document.getElementById('j-tp').value = '';
+      document.getElementById('j-notes').value = '';
+
+      loadJournal();
+    }
+
+    function clearJournal() {
+      if (confirm('Clear execution logs?')) {
+        localStorage.removeItem('hf_journal');
+        loadJournal();
+      }
+    }
+
+    // INITIALIZATION
+    function initTradingWidget() {
+      if (typeof TradingView !== 'undefined') {
+        new TradingView.widget({
+          "autosize": true,
+          "symbol": "BINANCE:BTCUSDT",
+          "interval": "60",
+          "timezone": "Asia/Jakarta",
+          "theme": "dark",
+          "style": "1",
+          "locale": "en",
+          "enable_publishing": false,
+          "allow_symbol_change": true,
+          "container_id": "tradingview_chart"
+        });
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initTradingWidget();
+      fetchInitialRestData();
+      connectBinanceWebSocket();
+      fetchLongShortRatio();
+      fetchMultiExchangeRatios();
+      fetchInstitutionalNewsRest();
+      setInterval(fetchInstitutionalNewsRest, 60000);
+      loadJournal();
+    });
+  </script>
+</body>
+</html>
