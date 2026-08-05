@@ -174,7 +174,7 @@
       <div style="font-size: 0.75rem; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; border: 1px solid var(--border-color);">
         <span>Ratio Indicator (Long/Short): <b id="ls-ratio-val">1.00</b></span>
         <p id="ls-sentiment-desc" style="color: var(--text-muted); margin-top: 4px; line-height: 1.3;">
-          Mengambil data dari Binance Futures REST API...
+          Mengambil data via Serverless Proxy...
         </p>
       </div>
 
@@ -363,15 +363,9 @@
   </div>
 
   <script>
-    // Safe CORS Proxy Engine Helper
-    function getProxyUrl(targetUrl) {
-      return `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
-    }
-
     const CONFIG = {
       BINANCE_REST_TICKER: 'https://api.binance.com/api/v3/ticker/24hr',
       BINANCE_WS_URL: 'wss://stream.binance.com:9443/ws/btcusdt@ticker/ethusdt@ticker/solusdt@ticker/bnbusdt@ticker',
-      BINANCE_LONG_SHORT_API: 'https://fapi.binance.com/fapi/v1/globalLongShortAccountRatio',
       RSS_FEEDS: {
         cointelegraph: 'https://cointelegraph.com/rss',
         coindesk: 'https://www.coindesk.com/arc/outboundfeeds/rss/',
@@ -382,7 +376,7 @@
     const livePrices = { btc: 0, eth: 0, sol: 0, bnb: 0 };
     const liveChanges = { btc: 0, eth: 0, sol: 0, bnb: 0 };
 
-    // 1. TICKER INITIAL REST & WEBSOCKET ENGINE (PERBAIKAN ENCODING API)
+    // 1. LIVE TICKER & WEBSOCKET ENGINE
     async function fetchInitialRestData() {
       try {
         const symbols = encodeURIComponent(JSON.stringify(["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT"]));
@@ -401,7 +395,7 @@
           evaluateQuantRegime();
         }
       } catch (err) {
-        console.warn("REST Ticker Fallback Triggered:", err);
+        console.warn("REST Ticker Fallback Active:", err);
       }
     }
 
@@ -444,21 +438,21 @@
       }
     }
 
-    // 2. LONG / SHORT RATIO ENGINE (PERBAIKAN CORS PREVENTOR)
+    // 2. LONG / SHORT RATIO ENGINE (LEWAT SERVERLESS PROXY VERCEL)
     async function fetchLongShortRatio() {
       let pair = document.getElementById('ls-pair-input').value.trim().toUpperCase();
       if (!pair) pair = 'BTCUSDT';
       if (!pair.endsWith('USDT')) pair += 'USDT';
 
       document.getElementById('ls-pair-name').innerText = pair;
-      document.getElementById('ls-sentiment-desc').innerText = `Mengambil data dari Binance Futures API...`;
+      document.getElementById('ls-sentiment-desc').innerText = `Mengambil data dari Serverless Proxy...`;
 
       try {
-        const targetUrl = `${CONFIG.BINANCE_LONG_SHORT_API}?symbol=${pair}&period=5m&limit=1`;
-        let res = await fetch(targetUrl).catch(() => fetch(getProxyUrl(targetUrl)));
+        // Memanggil Vercel API Route Internal (/api/long-short)
+        const res = await fetch(`/api/long-short?symbol=${pair}`);
         const data = await res.json();
 
-        if (data && data.length > 0) {
+        if (Array.isArray(data) && data.length > 0) {
           const longAccount = parseFloat(data[0].longAccount);
           const shortAccount = parseFloat(data[0].shortAccount);
           const ratio = parseFloat(data[0].longShortRatio);
@@ -482,14 +476,14 @@
 
           document.getElementById('ls-sentiment-desc').innerHTML = desc;
         } else {
-          document.getElementById('ls-sentiment-desc').innerText = `Pair ${pair} tidak ditemukan pada Futures.`;
+          document.getElementById('ls-sentiment-desc').innerText = `Pair ${pair} tidak ditemukan pada Futures API.`;
         }
       } catch (err) {
-        document.getElementById('ls-sentiment-desc').innerText = `Gagal memuat data. Periksa koneksi atau nama pair.`;
+        document.getElementById('ls-sentiment-desc').innerText = `Gagal memuat data. Periksa koneksi API.`;
       }
     }
 
-    // 3. MULTI-EXCHANGE ENGINE (SAFE FALLBACK & CATCH PER EXCHANGE)
+    // 3. MULTI-EXCHANGE ENGINE (LEWAT SERVERLESS PROXY VERCEL)
     async function fetchMultiExchangeRatios() {
       let pair = document.getElementById('multi-ex-pair').value.trim().toUpperCase();
       if (!pair) pair = 'BTCUSDT';
@@ -497,20 +491,18 @@
 
       const baseSymbol = pair.replace('USDT', '');
 
-      // 1. Binance
+      // 1. Binance (via Vercel Serverless Function)
       try {
-        const target = `${CONFIG.BINANCE_LONG_SHORT_API}?symbol=${pair}&period=5m&limit=1`;
-        const res = await fetch(target).catch(() => fetch(getProxyUrl(target)));
+        const res = await fetch(`/api/long-short?symbol=${pair}`);
         const data = await res.json();
         if (data && data[0]) {
           updateExchangeUI('binance', parseFloat(data[0].longAccount) * 100, parseFloat(data[0].shortAccount) * 100, parseFloat(data[0].longShortRatio));
         }
       } catch (e) { updateExchangeUI('binance', 50, 50, 1.00); }
 
-      // 2. OKX (Proxy Mandatory for CORS)
+      // 2. OKX (via Vercel Serverless Function)
       try {
-        const target = `https://www.okx.com/api/v5/rubik/stat/contracts/long-short-account-ratio?ccy=${baseSymbol}`;
-        const res = await fetch(getProxyUrl(target));
+        const res = await fetch(`/api/okx?ccy=${baseSymbol}`);
         const data = await res.json();
         if (data && data.data && data.data[0]) {
           const ratio = parseFloat(data.data[0][1]);
@@ -519,10 +511,9 @@
         } else { throw new Error('Invalid OKX response'); }
       } catch (e) { updateExchangeUI('okx', 51.2, 48.8, 1.05); }
 
-      // 3. Bybit
+      // 3. Bybit Direct (Bybit mendukung CORS publik secara native)
       try {
-        const target = `https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=${pair}&period=5m&limit=1`;
-        const res = await fetch(target).catch(() => fetch(getProxyUrl(target)));
+        const res = await fetch(`https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=${pair}&period=5m&limit=1`);
         const data = await res.json();
         if (data && data.result && data.result.list && data.result.list[0]) {
           const item = data.result.list[0];
@@ -551,7 +542,7 @@
       }
     }
 
-    // 4. QUANT REGIME & RISK CALCULATOR
+    // 4. QUANT REGIME & RISK CALCULATOR ENGINE
     function evaluateQuantRegime() {
       const banner = document.getElementById('regime-status-banner');
       const policy = document.getElementById('execution-policy');
@@ -601,7 +592,7 @@
       document.getElementById('quant-result').style.display = 'block';
     }
 
-    // 5. RSS NEWS ENGINE (SAFE ASYNC PARSER)
+    // 5. LIVE RSS NEWS ENGINE
     function analyzeNewsImpact(title) {
       const t = title.toLowerCase();
       let coin = 'MARKET';
